@@ -4,7 +4,7 @@
 
 Uses iOS 10 and Flickr's photo search API. Search for photos which are added to the photo stream.
 
-|![PhotoStream](/SceneryTracker_Screenshot.png?raw=true "Photo Stream")
+|![SearchPhoto](/FlickrImageSearchExample.png?raw=true "Search Photo")
 
 ## Requirements
 

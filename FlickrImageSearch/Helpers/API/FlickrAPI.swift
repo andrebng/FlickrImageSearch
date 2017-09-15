@@ -25,21 +25,10 @@ final class FlickrAPI {
     
     private let flickrAPIKey: String?
     
+    // MARK: - Public Interface
+    
     init(withAPIKey flickrKey: String) {
         self.flickrAPIKey = flickrKey
-    }
-    
-    /// Returns the URL for a HTTP call of the Flickr-API
-    /// Returns 10 photos per page
-    ///
-    /// - Parameters:
-    ///   - method: HTTP method of Flickr-API (e.g. "flickr.photos.search")
-    ///   - api_key: generated API-KEY (stored in Constants)
-    ///   - parameters: parameters for the HTTP call
-    /// - Returns: url for API call
-    private func api(method: String, api_key: String, parameters: String) -> String {
-        return "\(API.FlickrAPIURL)?method=\(method)&api_key=\(api_key)&\(parameters)&format=json&nojsoncallback=1&per_page=10"
-        
     }
     
     /// Flickr-API-Call using the "flickr.photos.search" method, to retrieve photos based on search text from a given page
@@ -65,34 +54,34 @@ final class FlickrAPI {
     
     // MARK: - Helper Methods
     
+    /// Returns the URL for a HTTP call of the Flickr-API
+    /// Returns 10 photos per page
+    ///
+    /// - Parameters:
+    ///   - method: HTTP method of Flickr-API (e.g. "flickr.photos.search")
+    ///   - api_key: generated API-KEY (stored in Constants)
+    ///   - parameters: parameters for the HTTP call
+    /// - Returns: url for API call
+    private func api(method: String, api_key: String, parameters: String) -> String {
+        return "\(API.FlickrAPIURL)?method=\(method)&api_key=\(api_key)&\(parameters)&format=json&nojsoncallback=1&per_page=10"
+    }
+    
     private func didFetchPhotoData(response: DataResponse<FlickrPhotosResult>, completion: PhotoDataCompletion) {
         switch response.result {
         case .success:
             
             if response.response?.statusCode == 200 {
                 
-                guard let flickrPhotos = response.result.value else {
-                    completion(nil, .invalidResponse)
-                    return
-                }
+                var error = DataManagerError.unknown
                 
-                guard let photos = flickrPhotos.photos else {
-                    completion(nil, .invalidResponse)
-                    return
-                }
-                
-                guard let photosCount = photos.photos?.count else {
-                    completion(nil, .invalidResponse)
-                    return
-                }
-                
-                if photosCount > 0 {
+                if let flickrPhotos = response.result.value, let photos = flickrPhotos.photos {
                     completion(photos.photos, nil)
                 }
                 else {
-                    completion(nil, .invalidResponse)
+                    error = .invalidResponse
                 }
                 
+                completion(nil, error)
             }
             else {
                 completion(nil, .failedRequest)

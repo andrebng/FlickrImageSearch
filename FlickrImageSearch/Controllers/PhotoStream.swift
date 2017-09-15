@@ -69,18 +69,25 @@ class PhotoStream: UIViewController {
                 self.present(alert, animated: true, completion: nil)
             }
             else if let photos = response {
-                if clearResults {
-                    self.page = 0
-                    self.photos.removeAllObjects()
+                if photos.count > 0 {
+                    if clearResults {
+                        self.page = 0
+                        self.photos.removeAllObjects()
+                    }
+                    
+                    self.photos.addObjects(from: photos)
+                    self.tableView.reloadData()
+                    
+                    self.page += 1
+                    
+                    // remove load indicator
+                    self.removeAllOverlays()
                 }
-                
-                self.photos.addObjects(from: photos)
-                self.tableView.reloadData()
-                
-                self.page += 1
-                
-                // remove load indicator
-                self.removeAllOverlays()
+                else {
+                    let alert = UIAlertController(title: "Info", message: "No photos were found", preferredStyle: UIAlertControllerStyle.alert)
+                    alert.addAction(UIAlertAction(title: "Ok", style: UIAlertActionStyle.default, handler: nil))
+                    self.present(alert, animated: true, completion: nil)
+                }
             }
         }
     }

@@ -7,7 +7,21 @@
 //
 
 import UIKit
+import Kingfisher
 
 class ImageCell: UITableViewCell {
+    
+    // MARK: - Type Properties
+    
+    static let reuseIdentifier = "ImageCell"
+    
+    // MARK: - Properties
+    
     @IBOutlet var photoImageView: UIImageView!
+    
+    // MARK: - Configuration
+    
+    func configure(withViewModel viewModel: FlickrPhotoViewModel) {
+        photoImageView.kf.setImage(with: viewModel.imageURL)
+    }
 }

@@ -9,9 +9,20 @@
 import Alamofire
 import AlamofireObjectMapper
 
-class FlickrAPI {
+enum DataManagerError: Error {
     
-    //MARK: Vars
+    case unknown
+    case failedRequest
+    case invalidResponse
+    
+}
+
+final class FlickrAPI {
+    
+    typealias PhotoDataCompletion = ([FlickrPhoto]?, DataManagerError?) -> ()
+    
+    // MARK: - Properties
+    
     private let flickrAPIKey: String?
     
     init(withAPIKey flickrKey: String) {
@@ -37,55 +48,60 @@ class FlickrAPI {
     ///   - text: search term
     ///   - page: which page
     ///   - completion: completion handler to retrieve result
-    public func photoSearch(withText text: String, andPage page: Int, completion: @escaping (_ success: Bool, _ results: [FlickrPhoto]?, _ message: String) -> Void) {
+    public func photoSearch(withText text: String, andPage page: Int, completion: @escaping PhotoDataCompletion) {
         
         guard let urlEncodedText = text.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed) else {
-            completion(false, nil, "Invalid search term")
+            completion(nil, .failedRequest)
             return
         }
         
-        let url = api(method: "flickr.photos.search", api_key: API.FlickrAPIKey, parameters: "text=\(urlEncodedText)&page=\(page)")
+        let url = api(method: API.FlickrAPISearchMethod, api_key: API.FlickrAPIKey, parameters: "text=\(urlEncodedText)&page=\(page)")
         
         // make a call to the "flickr.photos.search"-API to retrieve photos of given search term
         Alamofire.request(url).responseObject { (response: DataResponse<FlickrPhotosResult>) in
+            self.didFetchPhotoData(response: response, completion: completion)
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func didFetchPhotoData(response: DataResponse<FlickrPhotosResult>, completion: PhotoDataCompletion) {
+        switch response.result {
+        case .success:
             
-            switch response.result {
-            case .success:
+            if response.response?.statusCode == 200 {
                 
-                if response.response?.statusCode == 200 {
-                    
-                    guard let flickrPhotos = response.result.value else {
-                        completion(false, nil, "An error occurred retrieving the information")
-                        return
-                    }
-                    
-                    guard let photos = flickrPhotos.photos else {
-                        completion(false, nil, "Error retrieving photos")
-                        return
-                    }
-                    
-                    guard let photosCount = photos.photos?.count else {
-                        completion(false, nil, "Error retrieving count of photos")
-                        return
-                    }
-                    
-                    if photosCount > 0 {
-                        completion(true, photos.photos, "Success")
-                    }
-                    else {
-                        completion(false, nil, "No photos found")
-                    }
-                    
+                guard let flickrPhotos = response.result.value else {
+                    completion(nil, .invalidResponse)
+                    return
+                }
+                
+                guard let photos = flickrPhotos.photos else {
+                    completion(nil, .invalidResponse)
+                    return
+                }
+                
+                guard let photosCount = photos.photos?.count else {
+                    completion(nil, .invalidResponse)
+                    return
+                }
+                
+                if photosCount > 0 {
+                    completion(photos.photos, nil)
                 }
                 else {
-                    completion(false, nil, "Status code: \(response.response?.statusCode ?? -1)")
+                    completion(nil, .invalidResponse)
                 }
                 
-                break
-            case .failure:
-                completion(false, nil, "An unknown error occured. Please try again later.")
-                break
             }
+            else {
+                completion(nil, .failedRequest)
+            }
+            
+            break
+        case .failure:
+            completion(nil, .failedRequest)
+            break
         }
     }
     

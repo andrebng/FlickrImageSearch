@@ -14,10 +14,11 @@ import SwiftOverlays
 
 class PhotoStream: UIViewController {
     
-    //MARK: Outlets
+    // MARK: - Outlets
+    
     @IBOutlet var tableView             : UITableView!              // table representing photostream
     
-    //MARK: Variables
+    //MARK: Properties
     
     private var flickrAPI               : FlickrAPI!
     private var page                    : Int = 1                   // page indicator for photo search api
@@ -61,13 +62,13 @@ class PhotoStream: UIViewController {
         // Load indicator
         self.showWaitOverlayWithText("Loading images...")
         
-        flickrAPI.photoSearch(withText: text, andPage: self.page, completion: { (success, results, message) in
-            if success {
-                
-                guard let photos = results else {
-                    return
-                }
-                
+        flickrAPI.photoSearch(withText: text, andPage: self.page) { (response, error) in
+            if error != nil {
+                let alert = UIAlertController(title: "Error", message: "Request failed", preferredStyle: UIAlertControllerStyle.alert)
+                alert.addAction(UIAlertAction(title: "Ok", style: UIAlertActionStyle.default, handler: nil))
+                self.present(alert, animated: true, completion: nil)
+            }
+            else if let photos = response {
                 if clearResults {
                     self.page = 0
                     self.photos.removeAllObjects()
@@ -81,12 +82,7 @@ class PhotoStream: UIViewController {
                 // remove load indicator
                 self.removeAllOverlays()
             }
-            else {
-                let alert = UIAlertController(title: "Error", message: message, preferredStyle: UIAlertControllerStyle.alert)
-                alert.addAction(UIAlertAction(title: "Ok", style: UIAlertActionStyle.default, handler: nil))
-                self.present(alert, animated: true, completion: nil)
-            }
-        })
+        }
     }
     
 }
@@ -134,18 +130,15 @@ extension PhotoStream : UITableViewDelegate, UITableViewDataSource {
     // If search is active, show search history count, else photos count
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         
-        if self.searchController.isActive {
-            return self.searchHistory.count
-        }
+        if self.searchController.isActive { return self.searchHistory.count }
+        
         return self.photos.count
     }
     
     // If search is active, show history, else photos
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
-        if self.searchController.isActive {
-            return cellForHistory(indexPath: indexPath)
-        }
+        if self.searchController.isActive { return cellForHistory(indexPath: indexPath) }
         
         return cellForImage(indexPath: indexPath)
     }
@@ -155,9 +148,7 @@ extension PhotoStream : UITableViewDelegate, UITableViewDataSource {
         
         if self.searchController.isActive {
             
-            guard let text = self.searchHistory[indexPath.row] as? String else {
-                return
-            }
+            guard let text = self.searchHistory[indexPath.row] as? String else { return }
             
             self.searchPhoto(withText: text, clearResults: true)
             self.searchController.isActive = false
@@ -168,9 +159,7 @@ extension PhotoStream : UITableViewDelegate, UITableViewDataSource {
     func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
         if indexPath.row + 1 == self.photos.count {
             
-            guard let text = self.searchText else {
-                return
-            }
+            guard let text = self.searchText else { return }
             
             self.searchPhoto(withText: text, clearResults: false)
         }
@@ -180,15 +169,13 @@ extension PhotoStream : UITableViewDelegate, UITableViewDataSource {
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         
         // simple cell height for history
-        if self.searchController.isActive {
-            return 42
-        }
+        if self.searchController.isActive { return 42 }
         
         // height for photo cell
         return 185
     }
     
-    //MARK: Private tableview functions
+    // MARK: - Private tableview functions
     
     /// The photo cell
     ///
@@ -196,21 +183,13 @@ extension PhotoStream : UITableViewDelegate, UITableViewDataSource {
     /// - Returns: the photo cell
     private func cellForImage(indexPath: IndexPath) -> UITableViewCell {
         
-        var result = UITableViewCell()
+        guard let cell = tableView.dequeueReusableCell(withIdentifier: ImageCell.reuseIdentifier, for: indexPath) as? ImageCell else { fatalError("Unexpected Table View Cell") }
         
-        if let cell = tableView.dequeueReusableCell(withIdentifier: "ImageCell", for: indexPath) as? ImageCell {
-            
-            let photo = photos[indexPath.row] as! FlickrPhoto
-            
-            // use of Kingfisher for async image loading
-            let url = URL(string: photo.imageURL)
-            
-            cell.photoImageView?.kf.setImage(with: url)
-            
-            result = cell
+        if let photo = photos[indexPath.row] as? FlickrPhoto {
+            cell.configure(withViewModel: FlickrPhotoViewModel(flickrPhoto: photo))
         }
         
-        return result
+        return cell
     }
     
     /// The history search cell of type SimpleCell
@@ -219,20 +198,13 @@ extension PhotoStream : UITableViewDelegate, UITableViewDataSource {
     /// - Returns: the SimpleCell, containig history search term
     private func cellForHistory(indexPath: IndexPath) -> UITableViewCell {
         
-        var result = UITableViewCell()
+        guard let cell = tableView.dequeueReusableCell(withIdentifier: SimpleCell.reuseIdentifier, for: indexPath) as? SimpleCell else { fatalError("Unexpected Table View Cell") }
         
-        if let cell = tableView.dequeueReusableCell(withIdentifier: "SimpleCell", for: indexPath) as? SimpleCell {
-            
-            guard let text = self.searchHistory[indexPath.row] as? String else {
-                return UITableViewCell()
-            }
-            
+        if let text = self.searchHistory[indexPath.row] as? String {
             cell.searchTerm.text = text
-            
-            result = cell
         }
         
-        return result
+        return cell
     }
     
 }

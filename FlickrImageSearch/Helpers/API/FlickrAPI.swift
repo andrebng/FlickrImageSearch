@@ -72,16 +72,13 @@ final class FlickrAPI {
             
             if response.response?.statusCode == 200 {
                 
-                var error = DataManagerError.unknown
-                
                 if let flickrPhotos = response.result.value, let photos = flickrPhotos.photos {
                     completion(photos.photos, nil)
                 }
                 else {
-                    error = .invalidResponse
+                    completion(nil, .invalidResponse)
                 }
-                
-                completion(nil, error)
+            
             }
             else {
                 completion(nil, .failedRequest)

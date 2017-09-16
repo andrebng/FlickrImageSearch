@@ -34,10 +34,19 @@ class PhotoStream: UIViewController {
         self.title                                              = "Search Photo"
         
         // Setup the Search Controller
-        self.searchController                                   = UISearchController(searchResultsController: nil)
+        
+        let storyboard = UIStoryboard(name: "Main", bundle: nil)
+        guard let searchResultsController = storyboard.instantiateViewController(withIdentifier: "SearchResultsViewController") as? SearchResultsViewController else {
+            fatalError("Failed to init Search Results View Controller")
+        }
+        
+        searchResultsController.delegate                        = self
+        
+        self.searchController                                   = UISearchController(searchResultsController: searchResultsController)
+        self.searchController.searchBar.delegate                = searchResultsController
         self.searchController.dimsBackgroundDuringPresentation  = false
         definesPresentationContext                              = true
-        self.searchController?.searchBar.delegate               = self
+        self.searchController?.delegate                         = self
         
         self.searchText                                         = ""
         
@@ -94,39 +103,30 @@ class PhotoStream: UIViewController {
     
 }
 
-// MARK: UISearchBar Delegate
-extension PhotoStream : UISearchBarDelegate {
+// MARK: - SearchResults Delegate
+
+extension PhotoStream: SearchResultsProtocol {
     
-    // if search begins, set to reload table to show search-history
-    func searchBarTextDidBeginEditing(_ searchBar: UISearchBar) {
-        self.searchController.isActive = true
-        self.tableView.reloadData()
+    func search(byText text: String) {
+        self.searchText = text
+        self.searchPhoto(withText: text, clearResults: true)
     }
     
-    // if search ends, search for photo and load photos
-    func searchBarTextDidEndEditing(_ searchBar: UISearchBar) {
-        
-        guard let text = searchBar.text else {
-            return
-        }
-        
-        if text.characters.count > 0 {
-            
-            // add search term to history
-            if !self.searchHistory.contains(text) {
-                self.searchHistory.add(text)
-            }
-            
-            self.searchText = text
-            self.searchController.isActive = false
-            self.searchPhoto(withText: text, clearResults: true)
+}
+
+// MARK: - UISearchController Delegate
+// Don't hide Search Results when search bar is empty
+
+extension PhotoStream: UISearchControllerDelegate {
+    
+    func willPresentSearchController(_ searchController: UISearchController) {
+        DispatchQueue.main.async {
+            searchController.searchResultsController?.view.isHidden = false
         }
     }
     
-    // if search canceled, reload table to photos
-    func searchBarCancelButtonClicked(_ searchBar: UISearchBar) {
-        self.searchController.isActive = false
-        self.tableView.reloadData()
+    func didPresentSearchController(_ searchController: UISearchController) {
+        searchController.searchResultsController?.view.isHidden = false
     }
     
 }
@@ -136,30 +136,12 @@ extension PhotoStream : UITableViewDelegate, UITableViewDataSource {
     
     // If search is active, show search history count, else photos count
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        
-        if self.searchController.isActive { return self.searchHistory.count }
-        
         return self.photos.count
     }
     
     // If search is active, show history, else photos
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        
-        if self.searchController.isActive { return cellForHistory(indexPath: indexPath) }
-        
         return cellForImage(indexPath: indexPath)
-    }
-    
-    // if search is active, selected row is used as search term
-    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        
-        if self.searchController.isActive {
-            
-            guard let text = self.searchHistory[indexPath.row] as? String else { return }
-            
-            self.searchPhoto(withText: text, clearResults: true)
-            self.searchController.isActive = false
-        }
     }
     
     // Check if user scrolled to bottom, if so, load next set of pictures from incremented page
@@ -170,16 +152,6 @@ extension PhotoStream : UITableViewDelegate, UITableViewDataSource {
             
             self.searchPhoto(withText: text, clearResults: false)
         }
-    }
-    
-    // set height for search-history-cell (SimpleCell) or photo-cell
-    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-        
-        // simple cell height for history
-        if self.searchController.isActive { return 42 }
-        
-        // height for photo cell
-        return 185
     }
     
     // MARK: - Private tableview functions
@@ -194,21 +166,6 @@ extension PhotoStream : UITableViewDelegate, UITableViewDataSource {
         
         if let photo = photos[indexPath.row] as? FlickrPhoto {
             cell.configure(withViewModel: FlickrPhotoViewModel(flickrPhoto: photo))
-        }
-        
-        return cell
-    }
-    
-    /// The history search cell of type SimpleCell
-    ///
-    /// - Parameter indexPath: indexpath of tableview
-    /// - Returns: the SimpleCell, containig history search term
-    private func cellForHistory(indexPath: IndexPath) -> UITableViewCell {
-        
-        guard let cell = tableView.dequeueReusableCell(withIdentifier: SimpleCell.reuseIdentifier, for: indexPath) as? SimpleCell else { fatalError("Unexpected Table View Cell") }
-        
-        if let text = self.searchHistory[indexPath.row] as? String {
-            cell.searchTerm.text = text
         }
         
         return cell

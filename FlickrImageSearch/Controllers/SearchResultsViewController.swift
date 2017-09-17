@@ -10,7 +10,7 @@ import UIKit
 
 protocol SearchResultsProtocol {
     
-    func search(byText text: String)
+    func search(byText text: String?)
     
 }
 
@@ -28,8 +28,6 @@ class SearchResultsViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        print("SearchHIstory: \(self.searchHistory)")
         
         // Init Table View
         self.tableView.delegate = self
@@ -59,11 +57,10 @@ extension SearchResultsViewController: UISearchBarDelegate {
                 return
             }
             
-            delegate.search(byText: text)
-            self.dismiss(animated: true, completion: nil)
-            self.tableView.reloadData()
-            
             searchBar.text = ""
+            self.dismiss(animated: true, completion: nil)
+            delegate.search(byText: text)
+            self.tableView.reloadData()
         }
     }
     

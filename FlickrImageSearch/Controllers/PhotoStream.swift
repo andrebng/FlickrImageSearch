@@ -14,24 +14,43 @@ import SwiftOverlays
 
 class PhotoStream: UIViewController {
     
-    // MARK: - Outlets
+    // MARK: - Properties
     
     @IBOutlet var tableView             : UITableView!              // table representing photostream
     
-    //MARK: Properties
+    // MARK: -
     
-    private var flickrAPI               : FlickrAPI!
-    private var page                    : Int = 1                   // page indicator for photo search api
+    var viewModel: PhotoStreamViewViewModel!
     
-    fileprivate var searchController    : UISearchController!
+    // MARK: -
+    
     fileprivate var searchText          : String?                   // last searched term of user for lazy loading
-    fileprivate var photos              : NSMutableArray = []       // array photos from the Flickr-API
-    fileprivate var searchHistory       : NSMutableArray = []       // search history of user
+    fileprivate var tmpPhotoCount       : Int  = 0                  // tmp count for lazy loading
+    
+    // MARK: -
+    
+    private var searchController        : UISearchController!
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
         self.title                                              = "Search Photo"
+        
+        // Init View Model
+        self.viewModel = PhotoStreamViewViewModel()
+        
+        self.viewModel.didUpdatePhotos = { [unowned self] (photos) in
+            self.tableView.reloadData()
+        }
+        
+        self.viewModel.queryingDidChange = { [unowned self] (querying) in
+            if querying {
+                self.showWaitOverlayWithText("Loading images...")
+            }
+            else {
+                self.removeAllOverlays()
+            }
+        }
         
         // Setup the Search Controller
         
@@ -56,60 +75,25 @@ class PhotoStream: UIViewController {
         self.tableView.separatorColor                           = UIColor.clear
         self.tableView.tableHeaderView                          = self.searchController?.searchBar
         
-        // Initialize FlickrAPI
-        self.flickrAPI = FlickrAPI(withAPIKey: API.FlickrAPIKey)
-        
     }
-    
-    /// Searches for photos via Flickr-API and clears photo stream if new search was started
-    ///
-    /// - Parameters:
-    ///   - text: search term for photos
-    ///   - clearResults: true if clearing photo stream needed, else false
-    func searchPhoto(withText text: String, clearResults: Bool) {
-        
-        // Load indicator
-        self.showWaitOverlayWithText("Loading images...")
-        
-        flickrAPI.photoSearch(withText: text, andPage: self.page) { (response, error) in
-            if error != nil {
-                let alert = UIAlertController(title: "Error", message: "Request failed", preferredStyle: UIAlertControllerStyle.alert)
-                alert.addAction(UIAlertAction(title: "Ok", style: UIAlertActionStyle.default, handler: nil))
-                self.present(alert, animated: true, completion: nil)
-            }
-            else if let photos = response {
-                if photos.count > 0 {
-                    if clearResults {
-                        self.page = 0
-                        self.photos.removeAllObjects()
-                    }
-                    
-                    self.photos.addObjects(from: photos)
-                    self.tableView.reloadData()
-                    
-                    self.page += 1
-                    
-                    // remove load indicator
-                    self.removeAllOverlays()
-                }
-                else {
-                    let alert = UIAlertController(title: "Info", message: "No photos were found", preferredStyle: UIAlertControllerStyle.alert)
-                    alert.addAction(UIAlertAction(title: "Ok", style: UIAlertActionStyle.default, handler: nil))
-                    self.present(alert, animated: true, completion: nil)
-                }
-            }
-        }
-    }
-    
 }
 
 // MARK: - SearchResults Delegate
 
 extension PhotoStream: SearchResultsProtocol {
     
-    func search(byText text: String) {
-        self.searchText = text
-        self.searchPhoto(withText: text, clearResults: true)
+    func search(byText text: String?) {
+        self.tmpPhotoCount = 0
+        self.viewModel.resetPhotos = true
+        
+        if let text = text {
+            self.searchText = text
+            self.viewModel.query = text
+        }
+        else {
+            guard let searchText = self.searchText else { return }
+            self.viewModel.query = searchText
+        }
     }
     
 }
@@ -136,7 +120,7 @@ extension PhotoStream : UITableViewDelegate, UITableViewDataSource {
     
     // If search is active, show search history count, else photos count
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return self.photos.count
+        return self.viewModel.numberOfPhotos
     }
     
     // If search is active, show history, else photos
@@ -146,11 +130,12 @@ extension PhotoStream : UITableViewDelegate, UITableViewDataSource {
     
     // Check if user scrolled to bottom, if so, load next set of pictures from incremented page
     func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-        if indexPath.row + 1 == self.photos.count {
+        if indexPath.row + 1 == self.viewModel.numberOfPhotos && tmpPhotoCount < viewModel.numberOfPhotos {
+            
+            tmpPhotoCount = viewModel.numberOfPhotos
             
             guard let text = self.searchText else { return }
-            
-            self.searchPhoto(withText: text, clearResults: false)
+            self.viewModel.query = text
         }
     }
     
@@ -164,8 +149,8 @@ extension PhotoStream : UITableViewDelegate, UITableViewDataSource {
         
         guard let cell = tableView.dequeueReusableCell(withIdentifier: ImageCell.reuseIdentifier, for: indexPath) as? ImageCell else { fatalError("Unexpected Table View Cell") }
         
-        if let photo = photos[indexPath.row] as? FlickrPhoto {
-            cell.configure(withViewModel: FlickrPhotoViewModel(flickrPhoto: photo))
+        if let viewModel = self.viewModel.viewModelForPhoto(at: indexPath.row) {
+            cell.configure(withViewModel: viewModel)
         }
         
         return cell

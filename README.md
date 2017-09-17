@@ -3,6 +3,7 @@
 ## Introduction
 
 Uses iOS 10 and Flickr's photo search API. Search for photos which are added to the photo stream.
+Designed with MVVM and Data Binding.
 
 |![SearchPhoto](/FlickrImageSearchExample.png?raw=true "Search Photo")
 
